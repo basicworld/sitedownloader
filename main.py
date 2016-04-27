@@ -23,6 +23,8 @@ from lxml import etree
 from purl import URL
 import time
 import sys
+import re
+import chardet
 reload(sys)
 sys.setdefaultencoding('utf8')
 
@@ -96,9 +98,22 @@ class SiteDownload(object):
                             allow_redirects=False,
                             verify=False,
                             stream=True)
-                            # proxies=proxies)
         if resp.ok:
-            self.html = resp.content.decode('utf8')
+            fencoding = chardet.detect(resp.content)
+
+            # deal with encoding problem
+            try:
+                self.html = resp.content.\
+                    decode(fencoding.get('encoding', 'utf8')).encode('utf8')
+            except UnicodeDecodeError as e:
+                encoding = 'gbk' if fencoding.get('encoding').lower()\
+                    in ('gb2312', ) else 'gb2312'
+                self.html = resp.content.decode(encoding).encode('utf8')
+
+            # change all encoding to utf-8
+            pat = 'content="text/html; charset=.*?"'
+            repl = 'content="text/html; charset=utf-8"'
+            self.html = re.sub(pat, repl, self.html)
         else:
             raise TypeError('Something wrong when open %s' % self.url)
         self.tree = etree.HTML(self.html)
@@ -107,6 +122,7 @@ class SiteDownload(object):
         """
         css_file is in <link>
         """
+        # create dir
         css_dir = os.path.join(self.save_dir, 'css')
         os.makedirs(css_dir) if not os.path.isdir(css_dir) else None
 
@@ -114,18 +130,25 @@ class SiteDownload(object):
         for node in css_nodes:
             css_url = node.attrib.get('href')
             if css_url:
-                resp = requests.get(css_url,
-                                    headers=headers,
-                                    allow_redirects=False,
-                                    verify=False, )
-                                    # proxies=proxies)
-                if resp.ok:
-                    css_name = os.path.join(css_dir, os.path.basename(css_url))
+                old_css_url = css_url  # will be replaced by new_css_url
+                css_url = xurljoin(self.host, css_url)
+
+                # deal with special url: //a/b...
+                css_url = 'http:' + css_url if css_url.startswith('//')\
+                    else css_url
+                resp = requests.get(css_url, headers=headers,
+                                    allow_redirects=False, verify=False)\
+                    if css_url.startswith('http') else None
+                if resp and resp.ok:
+                    # base filename
+                    base_name = os.path.basename(css_url)
+                    # new pull filename
+                    new_css_name = os.path.join('css', base_name)
                     try:
-                        with open(css_name, 'w') as f:
+                        with open(os.path.join(css_dir, base_name), 'w') as f:
                             f.write(resp.content)
-                        # replace css link
-                        self.html = self.html.replace(css_url, css_name)
+                        self.html = self.html.replace(old_css_url,
+                                                      new_css_name)
                     except IOError as e:
                         pass
 
@@ -135,32 +158,34 @@ class SiteDownload(object):
         os.makedirs(img_dir) if not os.path.isdir(img_dir) else None
         img_nodes = self.tree.xpath('//img')
         for node in img_nodes:
-            original_img_url = node.attrib.get('original')
+            ori_img_url = node.attrib.get('original')
             src_img_url = node.attrib.get('src')
-            img_url = original_img_url if original_img_url else src_img_url
+            img_url = ori_img_url if ori_img_url else src_img_url
             if img_url:
-                original_img_url = img_url
-                img_url = 'http:' + img_url if img_url.startswith('//') \
-                    else img_url
+                old_img_url = img_url
+                img_url = xurljoin(self.host, img_url)
+                img_url = 'http:' + img_url\
+                    if img_url.startswith('//') else img_url
                 # print img_url
-                resp = requests.get(img_url,
-                                    headers=headers,
-                                    allow_redirects=False,
-                                    verify=False,
-                                    stream=True)
-                                    # proxies=proxies)
-                if resp.ok:
-                    img_name = os.path.join(img_dir, os.path.basename(img_url))
-                    relative_img_name = os.path.join('images', os.path.basename(img_url))
+                resp = requests.get(img_url, headers=headers,
+                                    # allow_redirects=False,
+                                    verify=False, stream=True)\
+                    if img_url.startswith('http') else None
+                img_url = resp.url  # debug for redirect url
+                if resp and resp.ok:
+                    base_name = os.path.basename(img_url)
+                    new_img_name = os.path.join('images', base_name)
                     try:
-                        with open(img_name, 'wb') as f:
+                        with open(os.path.join(img_dir, base_name), 'wb') as f:
                             f.write(resp.content)
                             f.close()
-                        # print src_img_url
-                        # self.html = self.html.replace(src_img_url, img_name)
-                        old = src_img_url + '" original="' + original_img_url
-                        new = relative_img_name + '" original="' + relative_img_name
-                        self.html = self.html.replace(old, new)
+                        old = src_img_url + '" original="' + old_img_url
+                        if old in self.html:
+                            new = new_img_name + '" original="' + new_img_name
+                            self.html = self.html.replace(old, new)
+                        else:
+                            self.html = self.html.replace(src_img_url,
+                                                          new_img_name)
                     except IOError as e:
                         pass
         pass
@@ -173,22 +198,26 @@ class SiteDownload(object):
         for node in js_nodes:
             js_url = node.attrib.get('src')
             if js_url:
-                resp = requests.get(js_url,
-                                    headers=headers,
-                                    allow_redirects=False,
-                                    verify=False, )
+                old_js_url = js_url
+                js_url = xurljoin(self.host, js_url)
+                js_url = 'http:' + js_url if js_url.startswith('//') else \
+                    js_url
+                resp = requests.get(js_url, headers=headers,
+                                    allow_redirects=False, verify=False, ) if \
+                    js_url.startswith('http') else None
                                     # proxies=proxies)
-                if resp.ok:
-                    js_name = os.path.join(js_dir, os.path.basename(js_url))
+                if resp and resp.ok:
+                    base_name = os.path.basename(js_url)
+                    js_name = os.path.join('js', base_name)
                     try:
-                        with open(js_name, 'w') as f:
+                        with open(os.path.join(js_dir, base_name), 'w') as f:
                             f.write(resp.content)
-                        self.html = self.html.replace(js_url, js_name)
+                        self.html = self.html.replace(old_js_url, js_name)
                     except IOError as e:
                         pass
 
     def complete_url(self):
-        """complete relative url in html"""
+        """complete relative url to full_url in html"""
         self.tree = etree.HTML(self.html)
         a_nodes = self.tree.xpath('//a')
         for node in a_nodes:
@@ -213,6 +242,7 @@ class SiteDownload(object):
         self.get_js()
         self.complete_url()
         self.save_html()
+        return self.html  # can be used for further function
 
 
 def loop(url, save_dir, delaytime=None):
