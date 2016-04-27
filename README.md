@@ -15,7 +15,7 @@ the site will be saved in following structure:
 
 `Chrome` is recommanded to open index.html
 
-### defore use
+### before use
 
 1. python version 2.7x required
 
