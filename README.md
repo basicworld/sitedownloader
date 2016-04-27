@@ -31,9 +31,10 @@ you should google for method
 
 cmd:
 
-    python main.py -u <url> [-d <delaytime>] [-o <save_dir>]
+    python  main.py -d <delaytime> -u <url>  [-o <save_dir>]
     # eg
-    python main.py -u http://m.sohu.com -d 60 -o tmp
+    python main.py -d 60 -u http://m.sohu.com -o tmp/backup
+    python main.py -d 60 -u http://www.sina.com.cn -o tmp/backup
 
 
 api:

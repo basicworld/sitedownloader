@@ -1,12 +1,12 @@
 # -*- coding:utf8 -*-
 """
 Usage:
-  rabbit.py -u <url> [-d <delaytime>] [-o <save_dir>]
+  main.py -d <delaytime> -u <url>  [-o <save_dir>]
 
 Arguments:
-  delaytime     dirpath
-  save_dir        fullpath to save your webpage
-  url           url
+  delaytime     delaytime, eg: 60
+  save_dir      path to save your site, eg: 'tmp'
+  url           url, eg: http://m.sohu.com
 
 Options:
   -h --help     show this help
@@ -78,17 +78,19 @@ class SiteDownload(object):
         save_time = datetime.strftime(datetime.now(), '%Y%m%d%H%M')
         self.orig_dir = os.path.join(save_dir, save_time)
         self.save_dir = os.path.abspath(os.path.join(save_dir, save_time))
-        print self.save_dir
+        # print self.save_dir
+        # create dir if not exist
         if not os.path.isdir(self.save_dir):
             os.makedirs(self.save_dir)
 
         self.url = url
         u = URL(url)
+        # get hot like: http://m.sohu.xom
         self.host = u.scheme() + '://' + u.host()
         print self.host, save_time
 
     def get_html(self):
-        """"""
+        """get html content"""
         resp = requests.get(self.url,
                             headers=headers,
                             allow_redirects=False,
@@ -97,6 +99,8 @@ class SiteDownload(object):
                             # proxies=proxies)
         if resp.ok:
             self.html = resp.content.decode('utf8')
+        else:
+            raise TypeError('Something wrong when open %s' % self.url)
         self.tree = etree.HTML(self.html)
 
     def get_css(self):
@@ -117,13 +121,16 @@ class SiteDownload(object):
                                     # proxies=proxies)
                 if resp.ok:
                     css_name = os.path.join(css_dir, os.path.basename(css_url))
-                    with open(css_name, 'w') as f:
-                        f.write(resp.content)
-                    # replace css link
-                    self.html = self.html.replace(css_url, css_name)
+                    try:
+                        with open(css_name, 'w') as f:
+                            f.write(resp.content)
+                        # replace css link
+                        self.html = self.html.replace(css_url, css_name)
+                    except IOError as e:
+                        pass
 
     def get_img(self):
-        """"""
+        """save imgs to images<dir>"""
         img_dir = os.path.join(self.save_dir, 'images')
         os.makedirs(img_dir) if not os.path.isdir(img_dir) else None
         img_nodes = self.tree.xpath('//img')
@@ -149,17 +156,17 @@ class SiteDownload(object):
                         with open(img_name, 'wb') as f:
                             f.write(resp.content)
                             f.close()
+                        # print src_img_url
+                        # self.html = self.html.replace(src_img_url, img_name)
+                        old = src_img_url + '" original="' + original_img_url
+                        new = relative_img_name + '" original="' + relative_img_name
+                        self.html = self.html.replace(old, new)
                     except IOError as e:
                         pass
-                    # print src_img_url
-                    # self.html = self.html.replace(src_img_url, img_name)
-                    old = src_img_url + '" original="' + original_img_url
-                    new = relative_img_name + '" original="' + relative_img_name
-                    self.html = self.html.replace(old, new)
         pass
 
     def get_js(self):
-        """"""
+        """save js to js<dir>"""
         js_dir = os.path.join(self.save_dir, 'js')
         os.makedirs(js_dir) if not os.path.isdir(js_dir) else None
         js_nodes = self.tree.xpath('//script')
@@ -173,9 +180,12 @@ class SiteDownload(object):
                                     # proxies=proxies)
                 if resp.ok:
                     js_name = os.path.join(js_dir, os.path.basename(js_url))
-                    with open(js_name, 'w') as f:
-                        f.write(resp.content)
-                    self.html = self.html.replace(js_url, js_name)
+                    try:
+                        with open(js_name, 'w') as f:
+                            f.write(resp.content)
+                        self.html = self.html.replace(js_url, js_name)
+                    except IOError as e:
+                        pass
 
     def complete_url(self):
         """complete relative url in html"""
@@ -191,12 +201,12 @@ class SiteDownload(object):
                 self.html = self.html.replace(old_href, new_href)
 
     def save_html(self):
-        """"""
+        """save html to index.html"""
         with open(os.path.join(self.save_dir, 'index.html'), 'w') as f:
             f.write(self.html)
 
     def run(self):
-        """"""
+        """control functions above"""
         self.get_html()
         self.get_css()
         self.get_img()
@@ -207,9 +217,11 @@ class SiteDownload(object):
 
 def loop(url, save_dir, delaytime=None):
     """
-    @url
-    @delaytime: second to loop
-    @save_dir
+
+    @url: full url needed
+    @delaytime: second to loop.
+     run sitedownload for every $delaytime second if not null
+    @save_dir: dir to save site
     """
     delaytime = int(delaytime) if (delaytime and delaytime.isdigit()) else None
     while True:
@@ -226,12 +238,13 @@ def cmd():
     function: command line
     """
     args = docopt(__doc__)
+    # print args
     if args.get('-u') and args.get('<url>').startswith('http'):
         save_dir = args.get('<save_dir>')
         save_dir = save_dir if save_dir else 'tmp'
         loop(args.get('<url>'), save_dir, args.get('<delaytime>'))
     else:
-        raise TypeError('Wrong url %s' % get('<url>'))
+        raise TypeError('Wrong url %s' % args.get('<url>'))
 
 if __name__ == '__main__':
     # loop('http://m.sohu.com/', 'tmp/backup', '')
