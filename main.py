@@ -59,12 +59,12 @@ def xurljoin(base, url):
     from urlparse import urljoin
     from urlparse import urlparse
     from urlparse import urlunparse
-    from posixpath import normpath
+    from purl import URL
 
     url = url if url else ''
     url1 = urljoin(base, url)
     arr = urlparse(url1)
-    path = normpath(arr[2])
+    path = URL(arr[2]).path()
     return urlunparse((arr.scheme, arr.netloc, path,
                        arr.params, arr.query, arr.fragment))
 
@@ -78,6 +78,7 @@ class SiteDownload(object):
         save_time = datetime.strftime(datetime.now(), '%Y%m%d%H%M')
         self.orig_dir = os.path.join(save_dir, save_time)
         self.save_dir = os.path.abspath(os.path.join(save_dir, save_time))
+        print self.save_dir
         if not os.path.isdir(self.save_dir):
             os.makedirs(self.save_dir)
 
@@ -95,7 +96,7 @@ class SiteDownload(object):
                             stream=True)
                             # proxies=proxies)
         if resp.ok:
-            self.html = resp.content.lower().decode('utf8')
+            self.html = resp.content.decode('utf8')
         self.tree = etree.HTML(self.html)
 
     def get_css(self):
@@ -134,6 +135,7 @@ class SiteDownload(object):
                 original_img_url = img_url
                 img_url = 'http:' + img_url if img_url.startswith('//') \
                     else img_url
+                # print img_url
                 resp = requests.get(img_url,
                                     headers=headers,
                                     allow_redirects=False,
@@ -142,15 +144,17 @@ class SiteDownload(object):
                                     # proxies=proxies)
                 if resp.ok:
                     img_name = os.path.join(img_dir, os.path.basename(img_url))
+                    relative_img_name = os.path.join('images', os.path.basename(img_url))
                     try:
                         with open(img_name, 'wb') as f:
                             f.write(resp.content)
+                            f.close()
                     except IOError as e:
                         pass
                     # print src_img_url
                     # self.html = self.html.replace(src_img_url, img_name)
                     old = src_img_url + '" original="' + original_img_url
-                    new = img_name + '" original="' + img_name
+                    new = relative_img_name + '" original="' + relative_img_name
                     self.html = self.html.replace(old, new)
         pass
 
@@ -175,13 +179,16 @@ class SiteDownload(object):
 
     def complete_url(self):
         """complete relative url in html"""
+        self.tree = etree.HTML(self.html)
         a_nodes = self.tree.xpath('//a')
         for node in a_nodes:
             href = node.attrib.get('href')
-            if href and not href.startswith('http') and \
-                    not href.startswith('//'):
-                print href, xurljoin(self.host, href)
-                self.html = self.html.replace(href, xurljoin(self.host, href))
+            if href and (not href.startswith('http')) and \
+                    (not href.startswith('//')):
+                # print href, xurljoin(self.host, href)
+                old_href = 'href="%s"' % href
+                new_href = 'href="%s"' % xurljoin(self.host, href)
+                self.html = self.html.replace(old_href, new_href)
 
     def save_html(self):
         """"""
@@ -198,7 +205,7 @@ class SiteDownload(object):
         self.save_html()
 
 
-def loop(url, save_dir='tmp', delaytime=None):
+def loop(url, save_dir, delaytime=None):
     """
     @url
     @delaytime: second to loop
@@ -206,7 +213,7 @@ def loop(url, save_dir='tmp', delaytime=None):
     """
     delaytime = int(delaytime) if (delaytime and delaytime.isdigit()) else None
     while True:
-        sd = SiteDownload(url)
+        sd = SiteDownload(url, save_dir)
         sd.run()
         if not delaytime:
             break
@@ -219,7 +226,13 @@ def cmd():
     function: command line
     """
     args = docopt(__doc__)
-    print args
+    if args.get('-u') and args.get('<url>').startswith('http'):
+        save_dir = args.get('<save_dir>')
+        save_dir = save_dir if save_dir else 'tmp'
+        loop(args.get('<url>'), save_dir, args.get('<delaytime>'))
+    else:
+        raise TypeError('Wrong url %s' % get('<url>'))
 
 if __name__ == '__main__':
-    loop('http://m.sohu.com/', 'tmp/backup', '')
+    # loop('http://m.sohu.com/', 'tmp/backup', '')
+    cmd()
