@@ -22,6 +22,9 @@ from datetime import datetime
 from lxml import etree
 from purl import URL
 import time
+import sys
+reload(sys)
+sys.setdefaultencoding('utf8')
 
 # use for debug
 proxies = {
@@ -33,9 +36,12 @@ proxies = {
 headers = {
     'Connection': 'keep-alive',
     'Cache-Control': 'max-age=0',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;\
+        q=0.9,image/webp,*/*;q=0.8',
     'Upgrade-Insecure-Requests': '1',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.87 Safari/537.36',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) \
+        AppleWebKit/537.36 (KHTML, like Gecko) \
+        Chrome/50.0.2661.87 Safari/537.36',
     'DNT': '1',
     'Accept-Encoding': 'gzip, deflate, sdch',
     'Accept-Language': 'zh-CN,zh;q=0.8,en-US;q=0.6,en;q=0.4',
@@ -89,7 +95,7 @@ class SiteDownload(object):
                             stream=True)
                             # proxies=proxies)
         if resp.ok:
-            self.html = resp.content
+            self.html = resp.content.lower().decode('utf8')
         self.tree = etree.HTML(self.html)
 
     def get_css(self):
@@ -126,7 +132,8 @@ class SiteDownload(object):
             img_url = original_img_url if original_img_url else src_img_url
             if img_url:
                 original_img_url = img_url
-                img_url = 'http:' + img_url if img_url.startswith('//') else img_url
+                img_url = 'http:' + img_url if img_url.startswith('//') \
+                    else img_url
                 resp = requests.get(img_url,
                                     headers=headers,
                                     allow_redirects=False,
@@ -166,7 +173,15 @@ class SiteDownload(object):
                         f.write(resp.content)
                     self.html = self.html.replace(js_url, js_name)
 
-        pass
+    def complete_url(self):
+        """complete relative url in html"""
+        a_nodes = self.tree.xpath('//a')
+        for node in a_nodes:
+            href = node.attrib.get('href')
+            if href and not href.startswith('http') and \
+                    not href.startswith('//'):
+                print href, xurljoin(self.host, href)
+                self.html = self.html.replace(href, xurljoin(self.host, href))
 
     def save_html(self):
         """"""
@@ -179,6 +194,7 @@ class SiteDownload(object):
         self.get_css()
         self.get_img()
         self.get_js()
+        self.complete_url()
         self.save_html()
 
 
