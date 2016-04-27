@@ -15,6 +15,8 @@ the site will be saved in following structure:
 
 `Chrome` is recommanded to open index.html
 
+coding in line with `pep8`
+
 ### before use
 
 1. python version 2.7x required
@@ -43,3 +45,20 @@ api:
     loop(url, save_dir, delaytime=None)
     # eg, note that delaytime must be int_type_str
     loop('http://m.sohu.com', 'tmp', '10')
+
+### history
+
+- add header to act as pc
+- add loop() for sleep function 
+- add cmd using `docopt`  
+- debug: xurljoin() wrong when facing with `/?`: http://m.sohu.com/?...
+- debug: special img_url in m.sohu.com: has both src and original 
+- debug: special img_url in m.sohu.com: src in same
+- debug: special url like //a/b...
+- debug: encoding problem appeared in 163.com
+- debug: gb2312, gbk UnicodeDecodeError
+- debug: wrong encoding when open with IE
+- debug: convert some relative urls to abs urls
+- debug: img url might be redirected
+- debug: `\\` causes problem in url
+- debug: ssl warning
