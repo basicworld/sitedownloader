@@ -1,26 +1,63 @@
 # sitedonload
-save html, css, img and js for giving url
 
-	main.py -d <delaytime> -u <url>  [-o <save_dir>] [-s]
+python site downloader: save html, css, img and js for given url
+
+fell free to contact me if you have any idea about this project：basicworld@163.com
+
+python 网页下载器，用于下载html、css、img、js，支持`子网页下载`、`定时下载`、`命令行操作`、`日志记录`
+
+
+
+	#eg
+	python main.py -d '' -u http://m.sohu.com -o tmp
+
 
 the site will be saved in following structure:
 
-    $save_time/
-    |-- index.html
-    |-- css/
-        |-- *.css
-    |-- images/
-        |--*.jpg/png/gif/ico
-    |-- js/
-        |-- *.js
-	|-- subs/ (when use `-s` command)
-		|-- sub0/
-			|-- $save_time
-			    |-- index.html
-			    |-- css/
-			    |-- images/
-			    |-- js/
-		|-- sub1/
+	$save_dir
+	|-- sitelog.log
+	|-- $save_time/
+	    |-- index.html
+	    |-- css/
+	        |-- *.css
+	    |-- images/
+	        |--*.jpg/png/gif/ico
+	    |-- js/
+	        |-- *.js
+		|-- subs/ (when use `-s` command)
+			|-- sub0/
+				|-- sitelog.log
+				|-- $save_time
+				    |-- index.html
+				    |-- css/
+				    |-- images/
+				    |-- js/
+			|-- sub1/
+
+for each url, follwing content will be saved:
+
+- log save in `sitelog.log`
+- main page save in `index.html`
+- css save in `css/`
+- img save in `images/`
+- javascript save in `js/`
+- sub page save in `subs/` 
+
+**Note**:
+
+Ads not include 
+
+this project runs well in: 
+
+- 手机搜狐网 http://m.sohu.com
+- qq新闻 http://news.qq.com/
+- 知乎精华 https://www.zhihu.com/topic/19550228/top-answers
+
+you may need to change code for your sepcific site, dont worry, its easy
+
+	# eg for img url 
+	original img_url in douban.com is in <img data-origin=""
+	you just need to replace <img src="" to your image path
 
 `Chrome` is recommanded to open index.html
 
@@ -45,12 +82,12 @@ you should google for method
 
 	Usage:
 	  main.py -d <delaytime> -u <url>  [-o <save_dir>] [-s]
-	
+
 	Arguments:
 	  delaytime     delaytime, eg: 60
 	  save_dir      path to save your site, eg: 'tmp'
 	  url           url, eg: http://m.sohu.com
-	
+
 	Options:
 	  -h --help     show this help
 	  -d            delaytime
@@ -84,13 +121,19 @@ you should google for method
     loop('http://m.sohu.com', 'tmp', '60', True)
 
 ----
+
+### todo
+
+- multiprocessing support (需要进程间通讯，待验证)
+
+----
 ### history
 
 - add header to act as pc
-- add loop() for sleep function 
-- add cmd using `docopt`  
+- add loop() for sleep function
+- add cmd using `docopt`
 - debug: xurljoin() wrong when facing with `/?`: http://m.sohu.com/?...
-- debug: special img_url in m.sohu.com: has both src and original 
+- debug: special img_url in m.sohu.com: has both src and original
 - debug: special img_url in m.sohu.com: src in same
 - debug: special url like //a/b...
 - debug: encoding problem appeared in 163.com
@@ -102,3 +145,4 @@ you should google for method
 - debug: ssl warning
 - add function for zhihu.com: save png in <link>
 - add command `-s`: use `-s` to save top 20 sub urls
+- add log function: now you can check `sitelog.txt` for error info

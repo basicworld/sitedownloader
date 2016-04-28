@@ -26,6 +26,7 @@ import time
 import sys
 import re
 import chardet
+from logger import logger
 reload(sys)
 sys.setdefaultencoding('utf8')
 # disable ssl warning
@@ -82,6 +83,13 @@ class SiteDownload(object):
         @url: full url of a site
         @save_dir: dir to save site
         """
+        # log
+        self.logger = logger('file', 'sitelog.log', save_dir)
+        self.logger.info('-' * 20)
+        self.logger.info('start')
+        self.logger.info('start func: __init__')
+        self.logger.info('url: %s' % url)
+
         save_time = datetime.strftime(datetime.now(), '%Y%m%d%H%M')
         self.save_time = save_time
         self.save_dir = os.path.abspath(os.path.join(save_dir, save_time))
@@ -94,9 +102,12 @@ class SiteDownload(object):
         # get host like: http://m.sohu.xom
         self.host = u.scheme() + '://' + u.host()
         print '%s: saving %s' % (save_time, self.url)
+        self.logger.info('end func: __init__')
 
     def get_html(self):
         """get html content"""
+        self.logger.info('start func: get_html')
+
         resp = requests.get(self.url,
                             headers=headers,
                             # allow_redirects=False,
@@ -107,10 +118,12 @@ class SiteDownload(object):
 
             # deal with encoding problem
             try:
+                self.logger.info('deal with encoding problem')
                 encoding = fencoding.get('encoding')
                 encoding = encoding if encoding else 'utf8'
                 self.html = resp.content.decode(encoding).encode('utf8')
             except UnicodeDecodeError as e:
+                self.logger.info('default encoding error, use another')
                 encoding = 'gbk' if fencoding.get('encoding').lower()\
                     in ('gb2312', ) else 'gb2312'
                 self.html = resp.content.decode(encoding).encode('utf8')
@@ -119,10 +132,13 @@ class SiteDownload(object):
             pat = 'content="text/html; charset=.*?"'
             # must be utf-8 not utf8
             repl = 'content="text/html; charset=utf-8"'
+            self.logger.info('encoding down')
             self.html = re.sub(pat, repl, self.html)
         else:
             raise TypeError('Something wrong when open %s' % self.url)
+            self.logger.info('Something wrong when open %s' % self.url)
         self.tree = etree.HTML(self.html)
+        self.logger.info('end func: get_html')
 
     def get_link_href(self, href_type='css', type_save_dir='css'):
         """
@@ -133,6 +149,7 @@ class SiteDownload(object):
         get_link_href('jpg', 'images') save jpg to images/
         """
         # create dir
+        self.logger.info('start func: get_link_href')
         css_dir = os.path.join(self.save_dir, type_save_dir)
         os.makedirs(css_dir) if not os.path.isdir(css_dir) else None
 
@@ -140,7 +157,7 @@ class SiteDownload(object):
         for node in css_nodes:
             # url is in attrib: href
             css_url = node.attrib.get('href')
-            if css_url and css_url.endswith(href_type):
+            if css_url and href_type in css_url:
                 # print css_url
                 old_css_url = css_url  # will be replaced by new_css_url
                 # get full url
@@ -154,7 +171,7 @@ class SiteDownload(object):
                     if css_url.startswith('http') else None
                 if resp and resp.ok:
                     # base filename
-                    base_name = os.path.basename(css_url)
+                    base_name = os.path.basename(URL(css_url).path())
                     # new pull filename
                     new_css_name = os.path.join(type_save_dir, base_name)
 
@@ -166,11 +183,14 @@ class SiteDownload(object):
                                                       new_css_name)
                     except IOError as e:
                         pass
+        self.logger.info('end func: get_link_href')
 
     def get_img(self):
         """save imgs to images<dir>"""
+        self.logger.info('start func: get_img')
         img_dir = os.path.join(self.save_dir, 'images')
         os.makedirs(img_dir) if not os.path.isdir(img_dir) else None
+        img_count = 0
 
         # lxml
         img_nodes = self.tree.xpath('//img')
@@ -191,9 +211,10 @@ class SiteDownload(object):
 
                 if resp and resp.ok:
                     img_url = resp.url  # debug for redirect url
-                    base_name = os.path.basename(img_url)
-                    new_img_name = os.path.join('images', base_name)\
-                        .replace('\\', '/')
+                    base_name = str(img_count) + os.path.basename(img_url)
+                    img_count += 1  # debug for qq.com
+                    new_img_name = os.path.join('images', base_name).\
+                        replace('\\', '/')
                     try:
                         with open(os.path.join(img_dir, base_name), 'wb') as f:
                             f.write(resp.content)
@@ -207,7 +228,7 @@ class SiteDownload(object):
                                                           new_img_name)
                     except IOError as e:
                         pass
-
+        self.logger.info('end func: get_img')
         # # re
         # pat = '<img.*?src=\"(?P<src_url>.*?)\".*?>'
         # print re.findall(pat, self.html)
@@ -215,6 +236,7 @@ class SiteDownload(object):
 
     def get_js(self):
         """save js to js<dir>"""
+        self.logger.info('start func: get_js')
         js_dir = os.path.join(self.save_dir, 'js')
         os.makedirs(js_dir) if not os.path.isdir(js_dir) else None
         js_nodes = self.tree.xpath('//script')
@@ -239,9 +261,11 @@ class SiteDownload(object):
                         self.html = self.html.replace(old_js_url, js_name)
                     except IOError as e:
                         pass
+        self.logger.info('end func: get_js')
 
     def replace_other_relative_url(self):
         """replace relative url to full_url in html"""
+        self.logger.info('start func: replace_other_relative_url')
         self.tree = etree.HTML(self.html)
         a_nodes = self.tree.xpath('//a')
         for node in a_nodes:
@@ -252,14 +276,18 @@ class SiteDownload(object):
                 old_href = 'href="%s"' % href
                 new_href = 'href="%s"' % xurljoin(self.host, href)
                 self.html = self.html.replace(old_href, new_href)
+        self.logger.info('end func: replace_other_relative_url')
 
     def save_html(self):
         """save html to index.html"""
+        self.logger.info('start func: save_html')
         with open(os.path.join(self.save_dir, 'index.html'), 'w') as f:
             f.write(self.html)
+        self.logger.info('end func: save_html')
 
     def run(self):
         """control functions above"""
+        self.logger.info('start func: run')
         self.get_html()
         self.get_link_href('.css')
         self.get_link_href('.png', 'images')  # debug for zhihu
@@ -268,6 +296,9 @@ class SiteDownload(object):
         self.get_js()
         self.replace_other_relative_url()
         self.save_html()
+        self.logger.info('end func: run')
+        self.logger.info('end')
+        self.logger.info('-' * 20)
         return True
         # return {
         #     'ok': True,
@@ -289,7 +320,7 @@ def loop(url, save_dir, delaytime=None, save_sub_url=False, max_sub_url=20):
         sd = SiteDownload(url, save_dir)
         resp = sd.run()
         if save_sub_url and resp:
-            print('----saving %s sub urls----' % max_sub_url)
+            print('----saving top %s sub urls----' % max_sub_url)
             main_html = sd.html
             main_save_dir = sd.save_dir
             tree = etree.HTML(main_html)
