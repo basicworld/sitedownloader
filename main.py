@@ -1,7 +1,7 @@
 # -*- coding:utf8 -*-
 """
 Usage:
-  main.py -d <delaytime> -u <url>  [-o <save_dir>]
+  main.py -d <delaytime> -u <url>  [-o <save_dir>] [-s]
 
 Arguments:
   delaytime     delaytime, eg: 60
@@ -12,6 +12,7 @@ Options:
   -h --help     show this help
   -d            delaytime
   -o            save_dir
+  -s            save sub urls
   -u            url
 """
 from docopt import docopt
@@ -92,7 +93,7 @@ class SiteDownload(object):
         u = URL(url)
         # get host like: http://m.sohu.xom
         self.host = u.scheme() + '://' + u.host()
-        # print self.host, save_time
+        print '%s: saving %s' % (save_time, self.url)
 
     def get_html(self):
         """get html content"""
@@ -123,19 +124,21 @@ class SiteDownload(object):
             raise TypeError('Something wrong when open %s' % self.url)
         self.tree = etree.HTML(self.html)
 
-    def get_css(self):
+    def get_link_href(self, href_type='css', type_save_dir='css'):
         """
         css_file is in <link>
+        also can be used to save img in <link>
         """
         # create dir
-        css_dir = os.path.join(self.save_dir, 'css')
+        css_dir = os.path.join(self.save_dir, type_save_dir)
         os.makedirs(css_dir) if not os.path.isdir(css_dir) else None
 
-        css_nodes = self.tree.xpath('//link[@type="text/css"]')
+        css_nodes = self.tree.xpath('//link')
         for node in css_nodes:
             # url is in attrib: href
             css_url = node.attrib.get('href')
-            if css_url:
+            if css_url and css_url.endswith(href_type):
+                # print css_url
                 old_css_url = css_url  # will be replaced by new_css_url
                 # get full url
                 css_url = xurljoin(self.host, css_url)
@@ -150,7 +153,7 @@ class SiteDownload(object):
                     # base filename
                     base_name = os.path.basename(css_url)
                     # new pull filename
-                    new_css_name = os.path.join('css', base_name)
+                    new_css_name = os.path.join(type_save_dir, base_name)
 
                     # save file
                     try:
@@ -255,7 +258,9 @@ class SiteDownload(object):
     def run(self):
         """control functions above"""
         self.get_html()
-        self.get_css()
+        self.get_link_href('.css')
+        self.get_link_href('.png', 'images')  # debug for zhihu
+        self.get_link_href('.ico', 'images')  # debug for zhihu
         self.get_img()
         self.get_js()
         self.replace_other_relative_url()
@@ -268,7 +273,7 @@ class SiteDownload(object):
         # }  # can be used for further function
 
 
-def loop(url, save_dir, delaytime=None):
+def loop(url, save_dir, delaytime=None, save_sub_url=False, max_sub_url=20):
     """
 
     @url: full url needed
@@ -280,7 +285,8 @@ def loop(url, save_dir, delaytime=None):
     while True:
         sd = SiteDownload(url, save_dir)
         resp = sd.run()
-        if resp:
+        if save_sub_url and resp:
+            print('----saving %s sub urls----' % max_sub_url)
             main_html = sd.html
             main_save_dir = sd.save_dir
             tree = etree.HTML(main_html)
@@ -306,7 +312,7 @@ def loop(url, save_dir, delaytime=None):
                         pass
                 sub_count += 1
                 # just for a demo
-                if sub_count > 15:
+                if sub_count > max_sub_url:
                     break
             with open(os.path.join(sd.save_dir,
                       'detail_index.html'), 'w') as f:
@@ -327,7 +333,7 @@ def cmd():
     if args.get('-u') and args.get('<url>').startswith('http'):
         save_dir = args.get('<save_dir>')
         save_dir = save_dir if save_dir else 'tmp'
-        loop(args.get('<url>'), save_dir, args.get('<delaytime>'))
+        loop(args.get('<url>'), save_dir, args.get('<delaytime>'), args.get('-s'))
     else:
         raise TypeError('Wrong url %s' % args.get('<url>'))
 
