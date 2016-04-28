@@ -128,6 +128,9 @@ class SiteDownload(object):
         """
         css_file is in <link>
         also can be used to save img in <link>
+        eg:
+        get_link_href(): save css to css/
+        get_link_href('jpg', 'images') save jpg to images/
         """
         # create dir
         css_dir = os.path.join(self.save_dir, type_save_dir)
